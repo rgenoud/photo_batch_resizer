@@ -1,14 +1,17 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 import Image
 import os
 import multiprocessing
 import threading
 import logging
 import logging.handlers
+import wxversion
+wxversion.select("2.8")
+import wx
 
+border_width = 10
 scale_factor = 50
-in_dir = os.curdir + os.sep + 'in_dir'
-out_dir = os.curdir + os.sep + 'out_dir'
 
 logger = logging.getLogger("threadTestLogger")
 logger.setLevel(logging.DEBUG)
@@ -39,9 +42,10 @@ def resize(in_file, out_file) :
         logger.error("unable to open file " + in_file)
 
 class Thread_resize(threading.Thread) :
-    def __init__(self, to_do) :
+    def __init__(self, to_do, bar) :
         threading.Thread.__init__(self)
         self.__to_do = to_do
+        self.__bar = bar
 
     def run(self) :
         logger.debug("starting thread " + self.getName())
@@ -49,39 +53,150 @@ class Thread_resize(threading.Thread) :
             while (True) :
                 value = self.__to_do.pop()
                 resize(value[0], value[1])
+                self.__bar.SetStatusText(value[0] + "->" +  value[1] + " ok !")
         except :
             # end of list
             pass
         finally :
             logger.debug("stopping thread " + self.getName())
 
+class Frame(wx.Frame):
+    def __init__(self, title):
+        global border_width
+        global scale_factor
 
-to_do = []
-jobs = []
-cpu_count = multiprocessing.cpu_count()
-logger.notice("found %s processors", cpu_count)
-dirList = os.listdir(in_dir)
+        wx.Frame.__init__(self, None, title=title, pos=(150,150), size=(600,400))
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
 
-# list of files to process
-for i in dirList :
-    logger.debug("found file " + i)
-    in_file = os.path.join(in_dir, i)
-    if (os.path.isfile(in_file)) : 
-        out_filename = os.path.splitext(i)[0] + '_small' + os.path.splitext(i)[1]
-        out_file = os.path.join(out_dir, out_filename)
-        to_do.append((in_file, out_file))
-        logger.debug("in_file=" + in_file + " out_file=" + out_file)
+        self.statusbar = self.CreateStatusBar()
 
-# create the threadpool
-for i in range(cpu_count) :
-    jobs.append(Thread_resize(to_do))
+        panel = wx.Panel(self)
+        grid = wx.GridBagSizer(vgap = 5, hgap = 5)
 
-# start the threads
-for i in range(len(jobs)) :
-    jobs[i].start()
+        # static text
+        in_dir_text = wx.StaticText(panel, -1, "Répertoire source :")
+        out_dir_text = wx.StaticText(panel, -1, "Répertoire destination :")
+        scale_text = wx.StaticText(panel, -1, "Pourcentage de réduction :")
 
-# wait for all thread to finish
-for i in range(len(jobs)) :
-    if (jobs[i].is_alive()) :
-        jobs[i].join()
+        # edit boxes
+        in_dir_ctrl = wx.TextCtrl(panel)
+        out_dir_ctrl = wx.TextCtrl(panel)
+        scale_ctrl = wx.TextCtrl(panel, value = str(scale_factor))
+        # disable the windows for now (only use the dialog boxes)
+        in_dir_ctrl.Enable(False)
+        out_dir_ctrl.Enable(False)
+
+        # buttons
+        in_dir_btn = wx.Button(panel, wx.ID_EDIT)
+        out_dir_btn = wx.Button(panel, wx.ID_EDIT)
+        exit_btn = wx.Button(panel, wx.ID_EXIT)
+        start_btn = wx.Button(panel, wx.ID_OK)
+        in_dir_btn.Bind(wx.EVT_BUTTON, self.OnInDirButton)
+        out_dir_btn.Bind(wx.EVT_BUTTON, self.OnOutDirButton)
+        exit_btn.Bind(wx.EVT_BUTTON, self.OnClose)
+        start_btn.Bind(wx.EVT_BUTTON, self.OnStart)
+
+        # add everything to the grid
+        text_align = wx.ALL | wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_LEFT
+        ctrl_align = wx.ALL | wx.ALIGN_CENTER | wx.EXPAND
+        btn_align = wx.ALL | wx.ALIGN_CENTER
+        grid.AddGrowableCol(1, 0)
+        grid.Add(in_dir_text, pos = (0, 0), flag = text_align, border = border_width)
+        grid.Add(out_dir_text, pos = (1, 0), flag = text_align, border = border_width)
+        grid.Add(scale_text, pos = (2, 0), flag = text_align, border = border_width)
+        grid.Add(in_dir_ctrl, pos = (0, 1), flag = ctrl_align, border = border_width)
+        grid.Add(out_dir_ctrl, pos = (1, 1), flag = ctrl_align, border = border_width)
+        grid.Add(scale_ctrl, pos = (2, 1), flag = ctrl_align, border = border_width)
+        grid.Add(in_dir_btn, pos = (0, 2), flag = btn_align, border = border_width)
+        grid.Add(out_dir_btn, pos = (1, 2), flag = btn_align, border = border_width)
+        grid.Add(exit_btn, pos = (3, 0), flag = btn_align, border = border_width)
+        grid.Add(start_btn, pos = (3, 3), flag = btn_align, border = border_width)
+
+        self.__in_dir_ctrl = in_dir_ctrl
+        self.__out_dir_ctrl = out_dir_ctrl
+        self.__scale_ctrl = scale_ctrl
+
+        panel.SetSizer(grid)
+        panel.Layout()
+
+    def OnClose(self, event):
+        self.Destroy()
+
+    def OnAbout(self, event):
+        dlg = wx.MessageDialog(self,
+                               "Réducteur d'images en masse\nPar Richard Genoud",
+                               "Information", wx.OK)
+        result = dlg.ShowModal()
+        dlg.Destroy()
+
+    def OnInDirButton(self, event):
+        dlg = wx.DirDialog(self,
+                           "Choisir le répertoire contenant les images sources",
+                           style = wx.DD_DIR_MUST_EXIST)
+        if dlg.ShowModal() == wx.ID_OK:
+            self.__in_dir_ctrl.SetValue(dlg.GetPath())
+        dlg.Destroy;
+
+    def OnOutDirButton(self, event):
+        dlg = wx.DirDialog(self, "Choisir le répertoire destination",
+                           style = wx.DD_DIR_MUST_EXIST)
+        if dlg.ShowModal() == wx.ID_OK:
+            self.__out_dir_ctrl.SetValue(dlg.GetPath())
+        dlg.Destroy;
+
+    def OnStart(self, event):
+        global scale_factor
+        to_do = []
+        jobs = []
+        in_dir = self.__in_dir_ctrl.GetValue()
+        out_dir = self.__out_dir_ctrl.GetValue()
+        cpu_count = multiprocessing.cpu_count()
+
+        try:
+            scale_factor = int(self.__scale_ctrl.GetValue())
+        except:
+            scale_factor = 0
+        if (scale_factor < 1):
+            wx.MessageBox("Mauvaise valeur de reduction")
+            return
+        if not os.path.isdir(in_dir) or not os.path.isdir(out_dir):
+            wx.MessageBox("Veuillez renseigner les répertoires source/destination")
+            return
+
+        logger.info("found %s processors", cpu_count)
+
+        dirList = os.listdir(in_dir)
+
+        # list of files to process
+        for i in dirList :
+            logger.debug("found file " + i)
+            in_file = os.path.join(in_dir, i)
+            if (os.path.isfile(in_file)) : 
+                out_filename = os.path.splitext(i)[0] + '_small' + os.path.splitext(i)[1]
+                out_file = os.path.join(out_dir, out_filename)
+                to_do.append((in_file, out_file))
+                logger.debug("in_file=" + in_file + " out_file=" + out_file)
+
+        # create the threadpool
+        for i in range(cpu_count) :
+            jobs.append(Thread_resize(to_do, self.statusbar))
+
+        # start the threads
+        for i in range(len(jobs)) :
+            jobs[i].start()
+
+        # wait for all thread to finish
+        for i in range(len(jobs)) :
+            if (jobs[i].is_alive()) :
+                jobs[i].join()
+
+        self.statusbar.SetStatusText("Opération terminée !")
+
+
+app = wx.App(redirect = False)
+top = Frame("Hello World")
+top.Show()
+app.MainLoop()
+
+
 
