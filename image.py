@@ -42,10 +42,10 @@ def resize(in_file, out_file) :
         logger.error("unable to open file " + in_file)
 
 class Thread_resize(threading.Thread) :
-    def __init__(self, to_do, parent) :
+    def __init__(self, to_do, update) :
         threading.Thread.__init__(self)
         self.__to_do = to_do
-        self.__parent = parent
+        self.__update = update
 
     def run(self) :
         logger.debug("starting thread " + self.getName())
@@ -53,7 +53,7 @@ class Thread_resize(threading.Thread) :
             while (True) :
                 value = self.__to_do.pop()
                 resize(value[0], value[1])
-                self.__parent.Update_Status(self, value[0] + "->" +  value[1] + " ok !")
+                self.__update(value[0] + "->" +  value[1] + " ok !")
         except :
             # end of list
             pass
@@ -157,6 +157,7 @@ class Frame(wx.Frame):
         in_dir = self.__in_dir_ctrl.GetValue()
         out_dir = self.__out_dir_ctrl.GetValue()
         cpu_count = multiprocessing.cpu_count()
+
         self.Update_Status("")
 
         try:
@@ -186,9 +187,7 @@ class Frame(wx.Frame):
 
         # create the threadpool
         for i in range(cpu_count) :
-            jobs.append(Thread_resize(to_do, self))
-
-        self.Update_Status("Opération en cours...")
+            jobs.append(Thread_resize(to_do, self.Update_Status))
 
         # start the threads
         for i in range(len(jobs)) :
