@@ -123,13 +123,6 @@ class Frame(wx.Frame):
     def OnClose(self, event):
         self.Destroy()
 
-    def OnAbout(self, event):
-        dlg = wx.MessageDialog(self,
-                               "Réducteur d'images en masse\nPar Richard Genoud",
-                               "Information", wx.OK)
-        result = dlg.ShowModal()
-        dlg.Destroy()
-
     def OnInDirButton(self, event):
         dlg = wx.DirDialog(self,
                            "Choisir le répertoire contenant les images sources",
