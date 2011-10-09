@@ -42,10 +42,10 @@ def resize(in_file, out_file) :
         logger.error("unable to open file " + in_file)
 
 class Thread_resize(threading.Thread) :
-    def __init__(self, to_do, bar) :
+    def __init__(self, to_do, parent) :
         threading.Thread.__init__(self)
         self.__to_do = to_do
-        self.__bar = bar
+        self.__parent = parent
 
     def run(self) :
         logger.debug("starting thread " + self.getName())
@@ -53,7 +53,7 @@ class Thread_resize(threading.Thread) :
             while (True) :
                 value = self.__to_do.pop()
                 resize(value[0], value[1])
-                self.__bar.SetStatusText(value[0] + "->" +  value[1] + " ok !")
+                self.__parent.Update_Status(self, value[0] + "->" +  value[1] + " ok !")
         except :
             # end of list
             pass
@@ -68,6 +68,7 @@ class Frame(wx.Frame):
         wx.Frame.__init__(self, None, title=title, pos=(150,150), size=(600,400))
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
+        self.__s = threading.Semaphore()
         self.statusbar = self.CreateStatusBar()
 
         panel = wx.Panel(self)
@@ -144,6 +145,11 @@ class Frame(wx.Frame):
             self.__out_dir_ctrl.SetValue(dlg.GetPath())
         dlg.Destroy;
 
+    def Update_Status(self, txt):
+        self.__s.acquire()
+        self.statusbar.SetStatusText(txt)
+        self.__s.release()
+
     def OnStart(self, event):
         global scale_factor
         to_do = []
@@ -151,6 +157,7 @@ class Frame(wx.Frame):
         in_dir = self.__in_dir_ctrl.GetValue()
         out_dir = self.__out_dir_ctrl.GetValue()
         cpu_count = multiprocessing.cpu_count()
+        self.Update_Status("")
 
         try:
             scale_factor = int(self.__scale_ctrl.GetValue())
@@ -179,7 +186,9 @@ class Frame(wx.Frame):
 
         # create the threadpool
         for i in range(cpu_count) :
-            jobs.append(Thread_resize(to_do, self.statusbar))
+            jobs.append(Thread_resize(to_do, self))
+
+        self.Update_Status("Opération en cours...")
 
         # start the threads
         for i in range(len(jobs)) :
@@ -190,7 +199,7 @@ class Frame(wx.Frame):
             if (jobs[i].is_alive()) :
                 jobs[i].join()
 
-        self.statusbar.SetStatusText("Opération terminée !")
+        self.Update_Status("Opération terminée !")
 
 
 app = wx.App(redirect = False)
