@@ -195,7 +195,7 @@ class Frame(wx.Frame):
 
 
 app = wx.App(redirect = False)
-top = Frame("Hello World")
+top = Frame("Convertisseur d'images")
 top.Show()
 app.MainLoop()
 
