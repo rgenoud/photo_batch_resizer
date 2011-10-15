@@ -61,23 +61,28 @@ class Thread_resize(threading.Thread) :
             logger.debug("stopping thread " + self.getName())
 
 class Frame(wx.Frame):
-    def __init__(self, title):
+    def __init__(self, title, refreshTime):
         global border_width
         global scale_factor
 
         wx.Frame.__init__(self, None, title=title, pos=(150,150), size=(600,400))
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
+        self.timer = wx.Timer(self)
 
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+        self.Bind(wx.EVT_TIMER, self.OnTimer)
+
+        self.__refreshTime = refreshTime
         self.__s = threading.Semaphore()
         self.statusbar = self.CreateStatusBar()
+        self.__jobs = []
 
         panel = wx.Panel(self)
         grid = wx.GridBagSizer(vgap = 5, hgap = 5)
 
         # static text
-        in_dir_text = wx.StaticText(panel, -1, "Répertoire source :")
-        out_dir_text = wx.StaticText(panel, -1, "Répertoire destination :")
-        scale_text = wx.StaticText(panel, -1, "Pourcentage de réduction :")
+        in_dir_text = wx.StaticText(panel, -1, u"Répertoire source :")
+        out_dir_text = wx.StaticText(panel, -1, u"Répertoire destination :")
+        scale_text = wx.StaticText(panel, -1, u"Pourcentage de réduction :")
 
         # edit boxes
         in_dir_ctrl = wx.TextCtrl(panel)
@@ -123,16 +128,31 @@ class Frame(wx.Frame):
     def OnClose(self, event):
         self.Destroy()
 
+    def OnTimer(self, event):
+        self.__s.acquire()
+        self.statusbar.SetStatusText(self.__statusText)
+        self.__s.release()
+        still_processing = 0
+
+        # checking if all threads have finished
+        for i in range(len(self.__jobs)) :
+            if (self.__jobs[i].is_alive()) :
+                still_processing = 1
+
+        if (not still_processing) :
+            self.statusbar.SetStatusText(u"Opération terminée !")
+            self.timer.Stop()
+
     def OnInDirButton(self, event):
         dlg = wx.DirDialog(self,
-                           "Choisir le répertoire contenant les images sources",
+                           u"Choisir le répertoire contenant les images sources",
                            style = wx.DD_DIR_MUST_EXIST)
         if dlg.ShowModal() == wx.ID_OK:
             self.__in_dir_ctrl.SetValue(dlg.GetPath())
         dlg.Destroy;
 
     def OnOutDirButton(self, event):
-        dlg = wx.DirDialog(self, "Choisir le répertoire destination",
+        dlg = wx.DirDialog(self, u"Choisir le répertoire destination",
                            style = wx.DD_DIR_MUST_EXIST)
         if dlg.ShowModal() == wx.ID_OK:
             self.__out_dir_ctrl.SetValue(dlg.GetPath())
@@ -140,13 +160,13 @@ class Frame(wx.Frame):
 
     def Update_Status(self, txt):
         self.__s.acquire()
-        self.statusbar.SetStatusText(txt)
+        self.__statusText = txt
         self.__s.release()
 
     def OnStart(self, event):
         global scale_factor
+        self.__jobs = []
         to_do = []
-        jobs = []
         in_dir = self.__in_dir_ctrl.GetValue()
         out_dir = self.__out_dir_ctrl.GetValue()
         cpu_count = multiprocessing.cpu_count()
@@ -158,10 +178,10 @@ class Frame(wx.Frame):
         except:
             scale_factor = 0
         if (scale_factor < 1):
-            wx.MessageBox("Mauvaise valeur de reduction")
+            wx.MessageBox(u"Mauvaise valeur de réduction")
             return
         if not os.path.isdir(in_dir) or not os.path.isdir(out_dir):
-            wx.MessageBox("Veuillez renseigner les répertoires source/destination")
+            wx.MessageBox(u"Veuillez renseigner les répertoires source/destination")
             return
 
         logger.info("found %s processors", cpu_count)
@@ -180,22 +200,17 @@ class Frame(wx.Frame):
 
         # create the threadpool
         for i in range(cpu_count) :
-            jobs.append(Thread_resize(to_do, self.Update_Status))
+            self.__jobs.append(Thread_resize(to_do, self.Update_Status))
 
         # start the threads
-        for i in range(len(jobs)) :
-            jobs[i].start()
+        for i in range(len(self.__jobs)) :
+            self.__jobs[i].start()
 
-        # wait for all thread to finish
-        for i in range(len(jobs)) :
-            if (jobs[i].is_alive()) :
-                jobs[i].join()
-
-        self.Update_Status("Opération terminée !")
-
+        # start the timer
+        self.timer.Start(self.__refreshTime)
 
 app = wx.App(redirect = False)
-top = Frame("Convertisseur d'images")
+top = Frame(u"Réducteur d'images", 50)
 top.Show()
 app.MainLoop()
 
