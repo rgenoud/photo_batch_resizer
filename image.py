@@ -6,6 +6,7 @@ import multiprocessing
 import threading
 import logging
 import logging.handlers
+import pyexiv2
 import wxversion
 wxversion.select("2.8")
 import wx
@@ -32,14 +33,43 @@ def do_scale(value) :
 def resize(in_file, out_file) :
     try :
         image = Image.open(in_file, mode = 'r')
-        if (image and image.format) :
-            logger.info("treat file : " + in_file + " format=" + image.format)
-            new_size = map(do_scale, image.size)
-            image.thumbnail(new_size)
-            image.save(out_file, image.format)
-            return
     except :
         logger.error("unable to open file " + in_file)
+        return
+
+    if (image and image.format) :
+        logger.info("treat file : " + in_file + " format=" + image.format)
+        # calculate new size
+        new_size = map(do_scale, image.size)
+        # resize image
+        try :
+            image.thumbnail(new_size, Image.ANTIALIAS)
+            image.save(out_file, image.format)
+        except :
+            logger.error("unable to save file " + out_file)
+            return
+
+            # get source image EXIF data
+        try :
+            source_image = pyexiv2.Image(in_file)
+            source_image.readMetadata()
+        except :
+            # no exif tag, no need to go further
+            return
+
+        try :
+            # copy them to dest image
+            dest_image = pyexiv2.Image(out_file)
+            dest_image.readMetadata()
+            source_image.copyMetadataTo(dest_image)
+
+            # set EXIF image size info to resized size
+            dest_image["Exif.Photo.PixelXDimension"] = new_size[0]
+            dest_image["Exif.Photo.PixelYDimension"] = new_size[1]
+            dest_image.writeMetadata()
+        except :
+            logger.error("unable to write exif metadata for file " + out_file);
+
 
 class Thread_resize(threading.Thread) :
     def __init__(self, to_do, update) :
@@ -65,7 +95,7 @@ class Frame(wx.Frame):
         global border_width
         global scale_factor
 
-        wx.Frame.__init__(self, None, title=title, pos=(150,150), size=(600,400))
+        wx.Frame.__init__(self, None, title=title, pos=(150,150), size=(600,300))
         self.timer = wx.Timer(self)
 
         self.Bind(wx.EVT_CLOSE, self.OnClose)
