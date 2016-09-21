@@ -12,3 +12,5 @@ Elle a besoin du paquet python-pyexiv2 et python-wxgtk3.0
 sudo apt-get install python-pyexiv2 python-wxgtk3.0
 
 La version non-GUI est un simple makefile utilisant convert (sudo apt-get install imagemagick)
+
+Fonctionne sous Linux (et aussi Windows, il parait.)
