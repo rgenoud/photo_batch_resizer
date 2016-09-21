@@ -8,7 +8,7 @@ import logging
 import logging.handlers
 import pyexiv2
 import wxversion
-wxversion.select("2.8")
+wxversion.select("3.0")
 import wx
 
 border_width = 10
