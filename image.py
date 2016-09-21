@@ -51,22 +51,23 @@ def resize(in_file, out_file) :
 
             # get source image EXIF data
         try :
-            source_image = pyexiv2.Image(in_file)
-            source_image.readMetadata()
+            source_image = pyexiv2.ImageMetadata(in_file)
+            source_image.read()
         except :
             # no exif tag, no need to go further
+            logger.error("no exif tag" + out_file)
             return
 
         try :
             # copy them to dest image
-            dest_image = pyexiv2.Image(out_file)
-            dest_image.readMetadata()
-            source_image.copyMetadataTo(dest_image)
+            dest_image = pyexiv2.metadata.ImageMetadata(out_file)
+            dest_image.read()
+            source_image.copy(dest_image)
 
             # set EXIF image size info to resized size
             dest_image["Exif.Photo.PixelXDimension"] = new_size[0]
             dest_image["Exif.Photo.PixelYDimension"] = new_size[1]
-            dest_image.writeMetadata()
+            dest_image.write()
         except :
             logger.error("unable to write exif metadata for file " + out_file);
 
@@ -136,7 +137,7 @@ class Frame(wx.Frame):
         text_align = wx.ALL | wx.ALIGN_CENTER_VERTICAL | wx.ALIGN_LEFT
         ctrl_align = wx.ALL | wx.ALIGN_CENTER | wx.EXPAND
         btn_align = wx.ALL | wx.ALIGN_CENTER
-        grid.AddGrowableCol(1, 0)
+        grid.AddGrowableCol(0, 0)
         grid.Add(in_dir_text, pos = (0, 0), flag = text_align, border = border_width)
         grid.Add(out_dir_text, pos = (1, 0), flag = text_align, border = border_width)
         grid.Add(scale_text, pos = (2, 0), flag = text_align, border = border_width)
