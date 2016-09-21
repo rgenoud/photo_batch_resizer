@@ -1,5 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+# Author: Richard Genoud
+# License: GNU GPLv3
 import Image
 import os
 import multiprocessing
