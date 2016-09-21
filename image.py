@@ -8,6 +8,7 @@ import multiprocessing
 import threading
 import logging
 import logging.handlers
+# TODO: switch to gexiv2: https://git.gnome.org/browse/gexiv2/tree/GExiv2.py
 import pyexiv2
 import wxversion
 wxversion.select("3.0")
